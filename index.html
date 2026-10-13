@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AOA Radar AI Assistant</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121a2d;
+      --panel-2: #17223a;
+      --text: #eef3ff;
+      --muted: #aab7d0;
+      --accent: #76a9ff;
+      --accent-2: #a6f0d0;
+      --border: #2b3957;
+      --danger: #ff9d9d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top right, #1b2b4b 0, var(--bg) 42%);
+      min-height: 100vh;
+    }
+    .wrap { width: min(1100px, 92%); margin: 0 auto; padding: 30px 0 50px; }
+    header { margin-bottom: 24px; }
+    .eyebrow { color: var(--accent-2); text-transform: uppercase; letter-spacing: .16em; font-size: .75rem; font-weight: 700; }
+    h1 { margin: 8px 0; font-size: clamp(1.8rem, 4vw, 2.7rem); }
+    .subtitle { color: var(--muted); max-width: 720px; line-height: 1.6; }
+    .api-row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin: 22px 0; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: rgba(18,26,45,.8); }
+    .api-row .field { flex: 1; min-width: 240px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .card { background: rgba(18,26,45,.94); border: 1px solid var(--border); border-radius: 18px; padding: 22px; box-shadow: 0 14px 36px rgba(0,0,0,.16); }
+    .card h2 { margin: 0 0 8px; font-size: 1.25rem; }
+    .desc { color: var(--muted); font-size: .92rem; line-height: 1.5; margin: 0 0 18px; }
+    .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    label { display: block; color: var(--muted); font-size: .86rem; margin-bottom: 6px; }
+    input, textarea {
+      width: 100%; border: 1px solid var(--border); border-radius: 10px; background: #0d1425;
+      color: var(--text); padding: 11px 12px; font: inherit; outline: none;
+    }
+    input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(118,169,255,.13); }
+    textarea { min-height: 100px; resize: vertical; line-height: 1.5; }
+    button { border: 0; border-radius: 10px; background: var(--accent); color: #071226; font-weight: 750; padding: 11px 15px; cursor: pointer; font-size: .94rem; }
+    button:hover { filter: brightness(1.08); }
+    button:disabled { opacity: .55; cursor: wait; }
+    .secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; }
+    .result { margin-top: 16px; padding: 13px; border-radius: 10px; background: #0d1425; border: 1px solid var(--border); min-height: 46px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+    .result.ok { border-color: #387b68; }
+    .result.error { border-color: #874b59; color: #ffd5d5; }
+    .chat-log { display: flex; flex-direction: column; gap: 10px; max-height: 350px; overflow-y: auto; margin-top: 15px; }
+    .bubble { padding: 11px 13px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .bubble.user { background: #20385d; align-self: flex-end; max-width: 92%; }
+    .bubble.assistant { background: #0d1425; border: 1px solid var(--border); align-self: stretch; }
+    .examples { color: var(--muted); font-size: .84rem; line-height: 1.6; margin-top: 12px; }
+    .examples button { font-size: .8rem; padding: 6px 9px; margin: 5px 4px 0 0; }
+    footer { color: var(--muted); font-size: .82rem; margin-top: 22px; line-height: 1.6; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .wrap { width: 94%; padding-top: 22px; } .card { padding: 17px; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div class="eyebrow">Radar · Machine Learning · RAG</div>
+      <h1>AOA Radar AI Assistant</h1>
+      <p class="subtitle">Predict Angle of Arrival from four channel amplitudes, or chat with your AI agent about AOA, radar concepts, PRI and pulse width. This page connects to your existing FastAPI backend.</p>
+    </header>
+
+    <section class="api-row">
+      <div class="field">
+        <label for="apiBase">FastAPI base URL</label>
+        <input id="apiBase" value="http://127.0.0.1:8000" placeholder="http://127.0.0.1:8000">
+      </div>
+      <button id="saveApi" class="secondary" type="button">Use this URL</button>
+      <span id="connectionStatus" class="desc" aria-live="polite" style="margin:0">Local API by default</span>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>AOA Prediction</h2>
+        <p class="desc">Enter the four channel amplitude values. The backend runs your trained model and saves the prediction to PostgreSQL.</p>
+        <form id="aoaForm">
+          <div class="fields">
+            <div><label for="ch1">CH1 amplitude</label><input id="ch1" type="number" step="any" required placeholder="e.g. 10"></div>
+            <div><label for="ch2">CH2 amplitude</label><input id="ch2" type="number" step="any" required placeholder="e.g. 20"></div>
+            <div><label for="ch3">CH3 amplitude</label><input id="ch3" type="number" step="any" required placeholder="e.g. 15"></div>
+            <div><label for="ch4">CH4 amplitude</label><input id="ch4" type="number" step="any" required placeholder="e.g. 25"></div>
+          </div>
+          <div class="actions"><button id="predictButton" type="submit">Predict AOA</button><button class="secondary" id="historyButton" type="button">Load saved predictions</button></div>
+        </form>
+        <div id="aoaResult" class="result" aria-live="polite">Your prediction will appear here.</div>
+        <div id="historyResult" class="result" style="display:none" aria-live="polite"></div>
+      </section>
+
+      <section class="card">
+        <h2>Chat with your AOA agent</h2>
+        <p class="desc">Ask for an AOA prediction, a radar concept from your knowledge base, PRI, or pulse width. The agent decides which tool to use.</p>
+        <label for="chatMessage">Your message</label>
+        <textarea id="chatMessage" placeholder="Example: According to my knowledge documents, what is PRI?"></textarea>
+        <div class="actions">
+          <button id="sendButton" type="button">Send message</button>
+          <button id="clearChat" type="button" class="secondary">Clear chat display</button>
+        </div>
+        <div class="examples">
+          Try an example:
+          <button type="button" class="secondary example" data-message="Predict AOA using CH1=10, CH2=20, CH3=15, and CH4=25.">AOA</button>
+          <button type="button" class="secondary example" data-message="Calculate PRI for pulse timestamps 0, 2, 4.5, and 6.5 milliseconds.">PRI</button>
+          <button type="button" class="secondary example" data-message="Calculate pulse width for start times [1.0, 3.0] ms and end times [1.3, 3.4] ms.">Pulse width</button>
+          <button type="button" class="secondary example" data-message="According to my knowledge documents, what is PRI?">RAG question</button>
+        </div>
+        <div id="chatLog" class="chat-log" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <footer>
+      This is a simple development frontend, not an authentication-protected production UI. Do not expose private measurement data or deploy it publicly without adding suitable access control. The chat thread ID is kept in this browser's local storage.
+    </footer>
+  </main>
+
+  <script>
+    const apiInput = document.getElementById("apiBase");
+    const connectionStatus = document.getElementById("connectionStatus");
+    const savedApi = localStorage.getItem("aoaApiBase");
+    if (savedApi) apiInput.value = savedApi.replace(/\/+$/, "");
+
+    function baseUrl() {
+      return apiInput.value.trim().replace(/\/+$/, "");
+    }
+
+    document.getElementById("saveApi").addEventListener("click", () => {
+      if (!baseUrl()) {
+        connectionStatus.textContent = "Enter a valid API base URL.";
+        return;
+      }
+      localStorage.setItem("aoaApiBase", baseUrl());
+      connectionStatus.textContent = "API URL saved in this browser.";
+    });
+
+    async function apiRequest(path, options = {}) {
+      const response = await fetch(baseUrl() + path, {
+        ...options,
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+      });
+      const raw = await response.text();
+      let data;
+      try { data = raw ? JSON.parse(raw) : {}; }
+      catch { data = { detail: raw || "The server returned an empty response." }; }
+      if (!response.ok) {
+        const message = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data);
+        throw new Error(`HTTP ${response.status}: ${message}`);
+      }
+      return data;
+    }
+
+    document.getElementById("aoaForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = document.getElementById("predictButton");
+      const output = document.getElementById("aoaResult");
+      const values = ["ch1", "ch2", "ch3", "ch4"].map(id => Number(document.getElementById(id).value));
+      if (values.some(v => !Number.isFinite(v))) {
+        output.className = "result error";
+        output.textContent = "Please enter valid numeric values for all four channels.";
+        return;
+      }
+      button.disabled = true;
+      output.className = "result";
+      output.textContent = "Predicting…";
+      try {
+        const data = await apiRequest("/predict", {
+          method: "POST",
+          body: JSON.stringify({ ch1: values[0], ch2: values[1], ch3: values[2], ch4: values[3] })
+        });
+        output.className = "result ok";
+        output.textContent = "Predicted AOA: " + data.aoa + "\nThe backend's /predict endpoint was called.";
+      } catch (error) {
+        output.className = "result error";
+        output.textContent = "Prediction failed.\n" + error.message + "\nCheck that FastAPI is running and CORS is configured.";
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById("historyButton").addEventListener("click", async () => {
+      const output = document.getElementById("historyResult");
+      output.style.display = "block";
+      output.className = "result";
+      output.textContent = "Loading saved predictions…";
+      try {
+        const data = await apiRequest("/predictions");
+        output.className = "result ok";
+        output.textContent = data.length
+          ? JSON.stringify(data, null, 2)
+          : "No saved predictions were returned.";
+      } catch (error) {
+        output.className = "result error";
+        output.textContent = "Could not load prediction history.\n" + error.message;
+      }
+    });
+
+    let threadId = localStorage.getItem("aoaChatThreadId");
+    if (!threadId) {
+      threadId = "web-" + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString());
+      localStorage.setItem("aoaChatThreadId", threadId);
+    }
+
+    function addBubble(role, text) {
+      const log = document.getElementById("chatLog");
+      const bubble = document.createElement("div");
+      bubble.className = "bubble " + role;
+      bubble.textContent = text;
+      log.appendChild(bubble);
+      log.scrollTop = log.scrollHeight;
+      return bubble;
+    }
+
+    async function sendChat() {
+      const messageInput = document.getElementById("chatMessage");
+      const button = document.getElementById("sendButton");
+      const message = messageInput.value.trim();
+      if (!message) return;
+      addBubble("user", message);
+      messageInput.value = "";
+      button.disabled = true;
+      const waiting = addBubble("assistant", "Thinking…");
+      try {
+        const data = await apiRequest("/chat", {
+          method: "POST",
+          body: JSON.stringify({ message, thread_id: threadId })
+        });
+        waiting.textContent = data.reply ?? JSON.stringify(data, null, 2);
+      } catch (error) {
+        waiting.className = "bubble assistant";
+        waiting.textContent = "Chat request failed.\n" + error.message + "\nCheck FastAPI logs, API credentials, and CORS settings.";
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    document.getElementById("sendButton").addEventListener("click", sendChat);
+    document.getElementById("chatMessage").addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendChat();
+      }
+    });
+    document.getElementById("clearChat").addEventListener("click", () => {
+      document.getElementById("chatLog").replaceChildren();
+    });
+    document.querySelectorAll(".example").forEach(button => {
+      button.addEventListener("click", () => {
+        document.getElementById("chatMessage").value = button.dataset.message;
+        document.getElementById("chatMessage").focus();
+      });
+    });
+  </script>
+</body>
+</html>
